@@ -29,7 +29,7 @@
 #include "pmd.h"
 #include "usb-1608G.h"
 #include "usb-1608G.rbf"
-#include "usb-1608G-2.rbf" 
+#include "usb-1608G-2.rbf"
 
 /* Commands and USB Report ID for the USB 1608G */
 /* Digital I/O Commands */
@@ -64,7 +64,7 @@
 #define MEM_ADDRESS       (0x31) // EEPROM read/write address value
 #define MEM_WRITE_ENABLE  (0x32) // Enable writes to firmware area
 
-/* Miscellaneous Commands */  
+/* Miscellaneous Commands */
 #define STATUS            (0x40) // Read device status
 #define BLINK_LED         (0x41) // Causes LED to blink
 #define RESET             (0x42) // Reset device
@@ -81,7 +81,7 @@
 #define HS_DELAY 2000
 
 static int wMaxPacketSize = 0;          // will be the same for all devices of this type so
-                                        // no need to be reentrant. 
+                                        // no need to be reentrant.
 static uint8_t scan_list[NCHAN_1608G];  // scan list
 
 
@@ -114,7 +114,7 @@ void usbBuildGainTable_USB1608GX_2AO(libusb_device_handle *udev, float table_AO[
   uint16_t address = 0x07080;
 
   usbMemAddressW_USB1608G(udev, address);
-  
+
   for (j = 0; j < NCHAN_AO_1608GX; j++) {
     for (k = 0; k < 2; k++) {
       usbMemoryR_USB1608G(udev, (uint8_t *) &table_AO[j][k], sizeof(float));
@@ -359,7 +359,7 @@ void usbAInScanStart_USB1608G(libusb_device_handle *udev, uint32_t count, uint32
      used if trigger is used.  This option will cause the trigger to
      be rearmed after retrig_count samples are acquired, with a total
      of count samples being returned from the entire scan.
-     
+
   */
 
   struct AInScan_t {
@@ -419,17 +419,10 @@ int usbAInScanRead_USB1608G(libusb_device_handle *udev, int nScan, int nChan, ui
 
   ret = libusb_bulk_transfer(udev, LIBUSB_ENDPOINT_IN|6, (unsigned char *) data, nbytes, &transferred, timeout);
 
-  if (ret < 0) {
-    perror("usbAInScanRead_USB1608G: error in libusb_bulk_transfer.");
-  }
-  if (transferred != nbytes) {
-    fprintf(stderr, "usbAInScanRead_USB1608G: number of bytes transferred = %d, nbytes = %d\n", transferred, nbytes);
-    status = usbStatus_USB1608G(udev);
-    if ((status & AIN_SCAN_OVERRUN)) {
-      fprintf(stderr, "usbAInScanRead: Analog In scan overrun.\n");
-      usbAInScanStop_USB1608G(udev);
-      usbAInScanClearFIFO_USB1608G(udev);
-    }
+  if (ret < 0 && errno != EAGAIN) {
+    perror("usbAInScanRead_USB1608G: error in libusb_bulk_transfer");
+    usbAInScanStop_USB1608G(udev);
+    usbAInScanClearFIFO_USB1608G(udev);
     return ret;
   }
 
@@ -460,7 +453,7 @@ void usbAInConfig_USB1608G(libusb_device_handle *udev, ScanList scanList[NCHAN_1
     mode:   SINGLE_ENDED  (Single-Ended)
             DIFFERENTIAL  (Differential)
             CALIBRATION   (Calibration mode)
-            LAST_CHANNEL  (End of scan)               
+            LAST_CHANNEL  (End of scan)
 
     range:  0: +/- 10V range
             1: +/- 5V range
@@ -487,7 +480,7 @@ void usbAInConfig_USB1608G(libusb_device_handle *udev, ScanList scanList[NCHAN_1
 	     i, scanList[i].mode, scanList[i].channel, scanList[i].range);
       return;
     }
-    
+
     scan_list[i] |= (scanList[i].range << 3);
 
     /*
@@ -521,7 +514,7 @@ int usbAInConfigR_USB1608G(libusb_device_handle *udev, uint8_t *scanList)
   if (usbStatus_USB1608G(udev) | AIN_SCAN_RUNNING) {
     usbAInScanStop_USB1608G(udev);
   }
-  
+
   ret = libusb_control_transfer(udev, requesttype, AIN_CONFIG, 0x0, 0x0, (unsigned char *) scanList, 15, HS_DELAY);
   if (ret < 0) {
     perror("usbAinConfigR_USB1608G Error.");
@@ -597,7 +590,7 @@ void usbAOutR_USB1608GX_2AO(libusb_device_handle *udev, uint8_t channel, double 
 {
   uint16_t value[4];
   uint8_t requesttype = (DEVICE_TO_HOST | VENDOR_TYPE | DEVICE_RECIPIENT);
-  
+
   libusb_control_transfer(udev, requesttype, AOUT, 0x0, 0x0, (unsigned char *) value, sizeof(value), HS_DELAY);
   *voltage = ((double)(value[channel] - table_AO[channel][1])) / (double) table_AO[channel][0];
   *voltage = (*voltage - 32768.)*10./32768.;
@@ -638,7 +631,7 @@ void usbAOutScanStart_USB1608GX_2AO(libusb_device_handle *udev, uint32_t count, 
 		  bit 6: reserved
 		  bit 7: reserved
     Notes:
-		  
+
     The output scan operates with the host continuously transferring
     data for the outputs until the end of the scan.  If the "count"
     parameter is 0, the scan will run until the AOutScanStop command
@@ -657,12 +650,12 @@ void usbAOutScanStart_USB1608GX_2AO(libusb_device_handle *udev, uint32_t count, 
   } AOutScan;
   uint8_t requesttype = (HOST_TO_DEVICE | VENDOR_TYPE | DEVICE_RECIPIENT);
 
-  
+
   AOutScan.pacer_period = (64.E6 / frequency) - 1;
   AOutScan.count = count;
   AOutScan.retrig_count = retrig_count;
   AOutScan.options = options;
-  
+
   libusb_control_transfer(udev, requesttype, AOUT_SCAN_START, 0x0, 0x0, (unsigned char *) &AOutScan, sizeof(AOutScan), HS_DELAY);
 }
 
@@ -686,7 +679,7 @@ void usbCounterInit_USB1608G(libusb_device_handle *udev, uint8_t counter)
 uint32_t usbCounter_USB1608G(libusb_device_handle *udev, uint8_t counter)
 {
   /*
-    This command reads the 32-bit event counter.  
+    This command reads the 32-bit event counter.
   */
 
   uint8_t requesttype = (DEVICE_TO_HOST | VENDOR_TYPE | DEVICE_RECIPIENT);
@@ -739,7 +732,7 @@ void usbTimerPeriodR_USB1608G(libusb_device_handle *udev, uint32_t *period)
 
   uint8_t requesttype = (DEVICE_TO_HOST | VENDOR_TYPE | DEVICE_RECIPIENT);
   libusb_control_transfer(udev, requesttype, TIMER_PERIOD, 0x0, 0x0, (unsigned char *) period, sizeof(period), HS_DELAY);
-}    
+}
 
 void usbTimerPeriodW_USB1608G(libusb_device_handle *udev, uint32_t period)
 {
@@ -905,7 +898,7 @@ void usbMemWriteEnable_USB1608G(libusb_device_handle *udev)
 /***********************************************
  *          Miscellaneous Commands             *
  ***********************************************/
-  
+
 /* blinks the LED of USB device */
 void usbBlink_USB1608G(libusb_device_handle *udev, uint8_t count)
 {
@@ -992,7 +985,7 @@ void usbGetSerialNumber_USB1608G(libusb_device_handle *udev, char serial[9])
   /*
     This commands reads the device USB serial number.  The serial
     number consists of 8 bytes, typically ASCII numeric or hexadecimal digits
-    (i.e. "00000001"). 
+    (i.e. "00000001").
   */
   uint8_t requesttype = (DEVICE_TO_HOST | VENDOR_TYPE | DEVICE_RECIPIENT);
 
@@ -1105,7 +1098,7 @@ double volts_USB1608G(const uint8_t gain, uint16_t value)
       volt = (value - 32768.)*2./32768.;
       break;
     case BP_1V:
-      volt = (value - 32768.)*1./32768; 
+      volt = (value - 32768.)*1./32768;
       break;
   }
   return volt;
